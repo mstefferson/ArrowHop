@@ -1,4 +1,4 @@
-function mainArrowHop( systemP, particles, flags )
+function mainArrowHop( systemP, particles, flags, animation )
 
 Ng = systemP.Ng;
 Np = systemP.Np;
@@ -8,12 +8,12 @@ if flags.interactions == 0
   NgRep = Ng .* onesRep;
 end
 % Initialize particles on grid with no over lap
+particles.Np  = systemP.Np;
 particles.ind = randperm( Ng*Ng, Np );
 particles.pos = zeros( Np, 2 );
 [particles.pos(:,1), particles.pos(:,2)] = ind2sub( Ng, particles.ind );
 particles.dir = randi(8, [Np, 1] );
 
-psize = particles.size;
 
 % A particle move matrix (temp?)
 % key:
@@ -42,33 +42,13 @@ transMat = [...
   1 8 7 8];
 
 % Color wheel
-section = 8;
-hues = 0 : 1/section : 1 - 1/section;
-HSV = [hues' ones(section,1) ones(section,1) ];
-hsv2rgb( HSV );
-colorwheel = hsv2rgb( HSV );
+partitions = length( blockVec );
+animation.colorwheel = makeColorwheel( partitions );
 
 % Place objects
 if flags.animate == 1
-  clf
-  ax=gca;axis square;ax.XGrid='on';ax.YGrid='on';
-  ax.XLim=[0.5 Ng+0.5];ax.YLim=[0.5 Ng+0.5];
-  ax.XTick=[0:ceil(Ng/20):Ng];
-  ax.YTick=ax.XTick;
-  ax.XLabel.String='x position';ax.YLabel.String='y position';
-  ax.FontSize=14;
-  recH = zeros(1,Np);
-
-  for ii = 1:Np
-    dirT = mod( particles.dir(ii) - 1, 4 ) + 1;
-    recH(ii) = rectangle('Position', ...
-      [particles.pos(ii,1) - psize(dirT,1) /2 , ...
-      particles.pos(ii,2) - psize(dirT,2) /2,...
-      psize(dirT,:)], 'Curvature', particles.curvature(dirT,:), ...
-      'FaceColor', colorwheel( particles.dir(ii), : ) );
-  end
-  pause(systemP.animPause)
-  
+  setupAnim(Ng);
+  recH = initAnim( particles, animation);
 end
 
 % NEED TO FIGURE OUT COLOR WHEEL AND PLOT IT!!!
@@ -124,17 +104,7 @@ try
     end % interactions
     
     if flags.animate == 1
-      for ii = 1:Np
-        % reset position
-        dirT = mod( particles.dir(ii) - 1, 4 ) + 1;
-        set( recH(ii) ,'Position', ...
-          [particles.pos(ii,1) - psize(dirT,1) /2 , ...
-          particles.pos(ii,2) - psize(dirT,2) /2,...
-          psize(dirT,:)], 'Curvature', particles.curvature(dirT,:), ...
-          'FaceColor', colorwheel( particles.dir(ii), : ) );
-      end
-      drawnow
-      pause(systemP.animPause)
+     updateAnim( recH, particles, animation )
     end %animate
   end % time
   

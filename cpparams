@@ -1,0 +1,1 @@
+cp ./src/paramsTemplate.m ./initParams.m
