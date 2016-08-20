@@ -1,5 +1,14 @@
 function mainArrowHop( systemP, particles, flags, animation )
 
+% Normalize probabilities
+probNorm = particles.vHopProb + particles.bHopParProb +...
+  particles.bHopPerpProb + particles.bRotProb + particles.doNothingProb;
+vHopProb = particles.vHopProb ./ probNorm;
+bHopParProb = particles.bHopParProb ./ probNorm;
+bHopPerpProb = particles.bHopPerpProb ./ probNorm;
+bRotProb = particles.bRotProb ./ probNorm;
+doNothingProb = particles.doNothingProb ./ probNorm;
+
 Ng = systemP.Ng;
 Np = systemP.Np;
 
@@ -7,13 +16,13 @@ if flags.interactions == 0
   onesRep = ones(Np,2);
   NgRep = Ng .* onesRep;
 end
+
 % Initialize particles on grid with no over lap
 particles.Np  = systemP.Np;
 particles.ind = randperm( Ng*Ng, Np );
 particles.pos = zeros( Np, 2 );
 [particles.pos(:,1), particles.pos(:,2)] = ind2sub( Ng, particles.ind );
 particles.dir = randi(8, [Np, 1] );
-
 
 % A particle move matrix (temp?)
 % key:
@@ -29,6 +38,20 @@ blockVec = [ 3 4 1 2 3 4 1 2];
 
 % obstable - particle direction mat
 obstParDir = [ 1 2 3 4 1 2 3 4];
+
+% diffusion matrix (dx1, dy1)
+flipV = [-1 1];
+diffMatPar = [...
+  0  1; ...
+  1  1; ...
+  1  0; ...
+  1 -1;];
+diffMatPerp = [...
+  1  0; ...
+  1 -1; ...
+  0  1; ...
+  1  1];
+
 % transition matrix. what do particles flip to after making a transition
 % from a initial direction (row 1:8) to an obstable direction (column 1:4)
 transMat = [...
@@ -63,54 +86,80 @@ grid.obsType(particles.ind) = mod( particles.dir - 1, 4 ) + 1;
 try
   for t = 1:systemP.Nt
     
+    % move everythin
     randPick = randperm( Np );
-    
-    if flags.interactions
+    rVec     = rand(Np,1);
+
     for ii = 1:Np
       pSelect = randPick(ii);
+      dirNem = mod( particles.dir( pSelect ) - 1, 4 ) + 1;
       oldPos  = particles.pos(pSelect,:);
-      tempPos = oldPos + moveMat( particles.dir(pSelect), : );
+      tempPos = oldPos;
+      oldDir = particles.dir(pSelect,:);
+      newDir = oldDir;
+
+      p1 = 0;
+      p2 = vHopProb;
+      p3 = p2 + bHopParProb;
+      p4 = p3 + bHopPerpProb;
+      p5 = p4 + bRotProb;
+      if p1 <= rVec(ii) && rVec(ii) < p1 + vHopProb
+        tempPos = oldPos + moveMat( particles.dir(pSelect), : );
+      elseif p2 <= rVec(ii) && rVec(ii) < p2 +bHopParProb
+        tempPos = tempPos + flipV( randi(2) ) .* diffMatPar( dirNem, : ) ;
+      elseif p3 <= rVec(ii) && rVec(ii) < p3 + bHopPerpProb
+        tempPos = tempPos + flipV( randi(2) ) .* diffMatPerp( dirNem, : ) ;
+      elseif p4 <= rVec(ii) && rVec(ii) < p4 + bRotProb
+        newDir = ...
+          mod( particles.dir( pSelect ) + flipV( randi(2) ) - 1, 8) + 1;
+      end
+      %keyboard
       tempPosPBC = mod( tempPos - [1 1] , [Ng Ng] ) + [1 1] ;
-      
       tpX = tempPosPBC(1);
       tpY = tempPosPBC(2);
       
-      % open spot
-      if grid.occ( tpX, tpY ) == 0
-        particles.pos( pSelect, : ) = tempPosPBC;
-        grid.occ( tpX, tpY ) = 1;
-        grid.occ( oldPos(1), oldPos(2) ) = grid.occ( oldPos(1), oldPos(2) ) - 1;
-        grid.obsType( tpX, tpY ) = ...
-          obstParDir( particles.dir( pSelect) );
-      % spot with obstacle, but not blocked 
-      elseif grid.obsType( tpX, tpY ) ~= blockVec( particles.dir(pSelect) );
-        particles.pos( pSelect, : ) = tempPosPBC;
-        grid.occ( tpX, tpY ) = ...
-          grid.occ( tpX, tpY ) + 1;
-        grid.occ( oldPos(1), oldPos(2) ) = grid.occ( oldPos(1), oldPos(2) ) - 1;
-        particles.dir( pSelect ) = transMat( particles.dir( pSelect ),...
-          grid.obsType( tpX, tpY ) );
+      if flags.interactions
+        % open spot
+        if grid.occ( tpX, tpY ) == 0
+          particles.pos( pSelect, : ) = tempPosPBC;
+          grid.occ( tpX, tpY ) = grid.occ( tpX, tpY ) + 1;
+          grid.occ( oldPos(1), oldPos(2) ) = grid.occ( oldPos(1), oldPos(2) ) - 1;
+          grid.obsType( tpX, tpY ) = ...
+            obstParDir( particles.dir( pSelect) );
+          particles.dir( pSelect ) = transMat( newDir ,...
+            grid.obsType( tpX, tpY ) );
+          % spot with obstacle, but not blocked
+        elseif grid.obsType( tpX, tpY ) ~= blockVec( newDir );
+          particles.pos( pSelect, : ) = tempPosPBC;
+          grid.occ( tpX, tpY ) = ...
+            grid.occ( tpX, tpY ) + 1;
+          grid.occ( oldPos(1), oldPos(2) ) = ...
+            grid.occ( oldPos(1), oldPos(2) ) - 1;
+          if grid.occ(tpX, tpY) > 1
+            particles.dir( pSelect ) = transMat( newDir ,...
+              grid.obsType( tpX, tpY ) );
+          else
+            particles.dir( pSelect ) = newDir;
+          end
+        end
+      else
+        particles.pos(pSelect,:) = tempPosPBC;
+        particles.dir(pSelect)  = newDir;
       end
       
       if grid.occ( oldPos(1), oldPos(2) ) == 0
         grid.obsType( oldPos(1), oldPos(2) ) = 0;
       end
-      %       keyboard      
-    end % loop over particles
-    
-    else
-       particles.pos = mod( particles.pos + ...
-         moveMat( particles.dir, : ) - onesRep , NgRep ) + onesRep;
-    end % interactions
+    end % particles
     
     if flags.animate == 1
-     updateAnim( recH, particles, animation )
+      updateAnim( recH, particles, animation )
     end %animate
   end % time
   
 catch err
   disp(err)
-%   keyboard
+  keyboard
 end
 
 
