@@ -1,4 +1,4 @@
-function mainArrowHop( systemP, particles, flags, animation )
+function mainArrowHop( filename, systemP, particles, time, flags, animation )
 
 % Normalize probabilities
 probNorm = particles.vHopProb + particles.bHopParProb +...
@@ -72,7 +72,19 @@ animation.colorwheel = makeColorwheel( partitions );
 if flags.animate == 1
   setupAnim(Ng);
   recH = initAnim( particles, animation);
+  
+  % Set-up movies
+    if flags.movie
+      Fig = gcf;
+      %Fig.Position = FigPos;
+      Mov = VideoWriter(animation.MovStr);
+      Mov.FrameRate = 4;
+      open(Mov);
+    end
+
 end
+
+
 
 % NEED TO FIGURE OUT COLOR WHEEL AND PLOT IT!!!
 
@@ -84,7 +96,7 @@ grid.occ(particles.ind) = 1;
 grid.obsType(particles.ind) = mod( particles.dir - 1, 4 ) + 1;
 
 try
-  for t = 1:systemP.Nt
+  for t = 1:time.Nt
     
     % move everythin
     randPick = randperm( Np );
@@ -152,17 +164,28 @@ try
       end
     end % particles
     
-    if flags.animate == 1
+    if flags.animate 
       updateAnim( recH, particles, animation )
+      if flags.movie
+        if mod( t, time.tRec ) == 0
+          drawnow;
+          pause(0.001);
+          Fr = getframe(Fig);
+          writeVideo(Mov,Fr);
+        end % rec
+      end % movie flag
     end %animate
   end % time
   
 catch err
   disp(err)
   keyboard
-end
+end % try catch
 
-
+ if flags.movie
+    close(Mov);
+    movefile(animation.MovStr, './movies')
+  end
 
 
 
