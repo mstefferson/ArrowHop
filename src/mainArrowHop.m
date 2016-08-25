@@ -21,7 +21,7 @@ end
 particles.Np  = systemP.Np;
 particles.ind = randperm( Ng*Ng, Np );
 particles.pos = zeros( Np, 2 );
-[particles.pos(:,1), particles.pos(:,2)] = ind2sub( Ng, particles.ind );
+[particles.pos(:,1), particles.pos(:,2)] = ind2sub( [Ng Ng], particles.ind );
 particles.dir = randi(8, [Np, 1] );
 
 % A particle move matrix (temp?)
@@ -74,17 +74,15 @@ if flags.animate == 1
   recH = initAnim( particles, animation);
   
   % Set-up movies
-    if flags.movie
-      Fig = gcf;
-      %Fig.Position = FigPos;
-      Mov = VideoWriter(animation.MovStr);
-      Mov.FrameRate = 4;
-      open(Mov);
-    end
-
+  if flags.movie
+    Fig = gcf;
+    %Fig.Position = FigPos;
+    Mov = VideoWriter(animation.MovStr);
+    Mov.FrameRate = 4;
+    open(Mov);
+  end
+  
 end
-
-
 
 % NEED TO FIGURE OUT COLOR WHEEL AND PLOT IT!!!
 
@@ -101,7 +99,7 @@ try
     % move everythin
     randPick = randperm( Np );
     rVec     = rand(Np,1);
-
+    
     for ii = 1:Np
       pSelect = randPick(ii);
       dirNem = mod( particles.dir( pSelect ) - 1, 4 ) + 1;
@@ -109,7 +107,7 @@ try
       tempPos = oldPos;
       oldDir = particles.dir(pSelect,:);
       newDir = oldDir;
-
+      
       p1 = 0;
       p2 = vHopProb;
       p3 = p2 + bHopParProb;
@@ -164,7 +162,7 @@ try
       end
     end % particles
     
-    if flags.animate 
+    if flags.animate
       updateAnim( recH, particles, animation )
       if flags.movie
         if mod( t, time.tRec ) == 0
@@ -182,10 +180,10 @@ catch err
   keyboard
 end % try catch
 
- if flags.movie
-    close(Mov);
-    movefile(animation.MovStr, './movies')
-  end
+if flags.movie
+  close(Mov);
+  movefile(animation.MovStr, './movies')
+end
 
 
 
