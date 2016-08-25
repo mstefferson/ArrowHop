@@ -30,7 +30,7 @@ paramFFp    = paramMat(:,2);
 paramHopPar = paramMat(:,3);
 
 % Run main code
-
+timeStore = zeros(1, numParams);
 for ii = 1: numParams
   runID = paramRunID(ii);
   systemP.ffp   = paramFFp(ii);
@@ -56,5 +56,8 @@ for ii = 1: numParams
   tid = tic;
   mainArrowHop( filestring, systemP, particles, time, flags, animation );
   runT = toc(tid);
+  timeStore(ii) = runT;
   fprintf( 'Run time %f (sec) \n\n', runT);
 end
+
+fprintf(' Average time = %f \n', mean(timeStore) );
