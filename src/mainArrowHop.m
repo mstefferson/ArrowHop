@@ -19,7 +19,7 @@ end
 
 % Initialize particles on grid with no over lap
 particles.Np  = systemP.Np;
-particles.ind = randperm( Ng*Ng, Np );
+particles.ind = randperm( Ng*Ng, Np )';
 particles.pos = zeros( Np, 2 );
 [particles.pos(:,1), particles.pos(:,2)] = ind2sub( [Ng Ng], particles.ind );
 particles.dir = randi(8, [Np, 1] );
@@ -37,7 +37,9 @@ moveMat = ...
 blockVec = [ 3 4 1 2 3 4 1 2];
 
 % obstable - particle direction mat
-obstParDir = [ 1 2 3 4 1 2 3 4];
+nemDirLup = [ 1 2 3 4 1 2 3 4]; % nematic direction look-up table
+typeLup = [1 1 1 1 2 2 2 2]; % particles type look-up
+typeAddLup = [ 1 0; 1 0; 1 0; 1 0; 1 0; 1 0; 1 0];
 
 % diffusion matrix (dx1, dy1)
 flipV = [-1 1];
@@ -64,6 +66,16 @@ transMat = [...
   7 6 7 8;...
   1 8 7 8];
 
+transMatComplete = [...
+  1 2 1 8 1 2 1 8;...
+  1 2 3 2 1 2 3 2;...
+  3 2 3 4 3 2 3 4;...
+  5 4 3 4 5 4 3 4;...
+  5 6 5 4 5 6 5 4;...
+  5 6 7 6 5 6 7 6;...
+  7 6 7 8 7 6 7 8;...
+  1 8 7 8 1 8 7 8];
+
 % Color wheel
 partitions = length( blockVec );
 animation.colorwheel = makeColorwheel( partitions );
@@ -87,15 +99,26 @@ end
 % NEED TO FIGURE OUT COLOR WHEEL AND PLOT IT!!!
 
 % Fill in grid with this info for faster look up
-grid.occ      = zeros(Ng,Ng);
-grid.obsType  = zeros(Ng,Ng);
+% Track grid occ and nematic order in a double list
+% Track polar species at each grid point
 
-grid.occ(particles.ind) = 1;
-grid.obsType(particles.ind) = mod( particles.dir - 1, 4 ) + 1;
+gridPolarStore = zeros( Ng*Ng, 4 ); % gridspace: occ, # type 1, 2, 3...8
+gridPolarStore( particles.ind, 1 ) = particles.dir == 1;
+gridPolarStore( particles.ind, 2 ) = particles.dir == 2;
+gridPolarStore( particles.ind, 3 ) = particles.dir == 3;
+gridPolarStore( particles.ind, 4 ) = particles.dir == 4;
+gridPolarStore( particles.ind, 5 ) = particles.dir == 5;
+gridPolarStore( particles.ind, 6 ) = particles.dir == 6;
+gridPolarStore( particles.ind, 7 ) = particles.dir == 7;
+gridPolarStore( particles.ind, 8 ) = particles.dir == 8;
+
+% Occ and Nematic. Not used if no interations
+gridOcc = zeros( Ng*Ng, 2 );
+gridOcc( particles.ind, 1 ) = 1;
+gridOcc( particles.ind, 2 ) =  mod( particles.dir - 1, 4 ) + 1;
 
 try
-  for t = 1:time.Nt
-    
+  for t = 1:time.Nt 
     % move everythin
     randPick = randperm( Np );
     rVec     = rand(Np,1);
@@ -104,7 +127,7 @@ try
       pSelect = randPick(ii);
       dirNem = mod( particles.dir( pSelect ) - 1, 4 ) + 1;
       oldPos  = particles.pos(pSelect,:);
-      tempPos = oldPos;
+      newPos = oldPos;
       oldDir = particles.dir(pSelect,:);
       newDir = oldDir;
       
@@ -113,54 +136,77 @@ try
       p3 = p2 + bHopParProb;
       p4 = p3 + bHopPerpProb;
       p5 = p4 + bRotProb;
+      
       if p1 <= rVec(ii) && rVec(ii) < p1 + vHopProb
-        tempPos = oldPos + moveMat( particles.dir(pSelect), : );
+        newPos = oldPos + moveMat( particles.dir(pSelect), : );
+        newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
       elseif p2 <= rVec(ii) && rVec(ii) < p2 +bHopParProb
-        tempPos = tempPos + flipV( randi(2) ) .* diffMatPar( dirNem, : ) ;
+        newPos = newPos + flipV( randi(2) ) .* diffMatPar( dirNem, : ) ;
+        newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
       elseif p3 <= rVec(ii) && rVec(ii) < p3 + bHopPerpProb
-        tempPos = tempPos + flipV( randi(2) ) .* diffMatPerp( dirNem, : ) ;
+        newPos = newPos + flipV( randi(2) ) .* diffMatPerp( dirNem, : ) ;
+        newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
       elseif p4 <= rVec(ii) && rVec(ii) < p4 + bRotProb
         newDir = ...
           mod( particles.dir( pSelect ) + flipV( randi(2) ) - 1, 8) + 1;
       end
       %keyboard
-      tempPosPBC = mod( tempPos - [1 1] , [Ng Ng] ) + [1 1] ;
-      tpX = tempPosPBC(1);
-      tpY = tempPosPBC(2);
+      tpX = newPos(1);
+      tpY = newPos(2);
+      
+      oldInd = particles.ind(pSelect);
+      newInd = sub2ind( [Ng Ng], tpX, tpY );
+      
+      % Remove it from the grid so it doesn't interact with itself     
+      gridOcc( oldInd, 1 ) = gridOcc( oldInd, 1 ) - 1;
+      if gridOcc( oldInd, 1 ) == 0;
+        gridOcc(oldInd , 2 ) = 0;
+      end   
+
+      gridPolarStore( oldInd, oldDir ) = gridPolarStore( oldInd, oldDir ) - 1;
       
       if flags.interactions
-        % open spot
-        if grid.occ( tpX, tpY ) == 0
-          particles.pos( pSelect, : ) = tempPosPBC;
-          grid.occ( tpX, tpY ) = grid.occ( tpX, tpY ) + 1;
-          grid.occ( oldPos(1), oldPos(2) ) = grid.occ( oldPos(1), oldPos(2) ) - 1;
-          grid.obsType( tpX, tpY ) = ...
-            obstParDir( particles.dir( pSelect) );
-          particles.dir( pSelect ) = transMat( newDir ,...
-            grid.obsType( tpX, tpY ) );
-          % spot with obstacle, but not blocked
-        elseif grid.obsType( tpX, tpY ) ~= blockVec( newDir );
-          particles.pos( pSelect, : ) = tempPosPBC;
-          grid.occ( tpX, tpY ) = ...
-            grid.occ( tpX, tpY ) + 1;
-          grid.occ( oldPos(1), oldPos(2) ) = ...
-            grid.occ( oldPos(1), oldPos(2) ) - 1;
-          if grid.occ(tpX, tpY) > 1
-            particles.dir( pSelect ) = transMat( newDir ,...
-              grid.obsType( tpX, tpY ) );
-          else
-            particles.dir( pSelect ) = newDir;
-          end
+        % Empty
+        if gridOcc( newInd, 1 ) == 0
+          % Update particle positions
+          particles.pos( pSelect, : ) = newPos;
+          particles.ind( pSelect ) = newInd;
+          particles.dir( pSelect ) = newDir;
+          %Update gridOcc
+          gridOcc( newInd, 1 ) = gridOcc( newInd, 1 ) + 1;
+          gridOcc( newInd, 2 ) = mod( particles.dir(pSelect) - 1, 4 ) + 1;
+        % Particle Blocked
+        elseif gridOcc( newInd, 2 ) == blockVec( newDir )
+          % Update particle positions
+          newInd = oldInd;
+          particles.pos( pSelect, : ) = oldPos;
+          particles.ind( pSelect ) = newInd;
+          particles.dir( pSelect ) = newDir;
+          
+          %Update gridOcc
+          gridOcc( newInd, 1 ) = gridOcc( newInd, 1 ) + 1;
+          gridOcc( oldInd, 2 ) = mod( newDir - 1, 4 ) + 1;
+        % Can move, Not empty  
+        else           
+          % Update particle positions
+          newDir = transMat( newDir, gridOcc(newInd,2) ); 
+          particles.pos( pSelect, : ) = newPos;
+          particles.ind( pSelect ) = newInd;
+          particles.dir( pSelect ) = newDir;
+          %Update gridOcc
+          gridOcc( newInd, 1 ) = gridOcc( newInd, 1 ) + 1;
         end
-      else
-        particles.pos(pSelect,:) = tempPosPBC;
-        particles.dir(pSelect)  = newDir;
+      else % No interactions
+        % Move it and update particles
+        particles.pos( pSelect, : ) = newPos;
+        particles.dir( pSelect ) = newDir;
       end
-      
-      if grid.occ( oldPos(1), oldPos(2) ) == 0
-        grid.obsType( oldPos(1), oldPos(2) ) = 0;
-      end
+
+      % Change occupancy
+      gridPolarStore( newInd, newDir ) = gridPolarStore( newInd, newDir ) + 1;
     end % particles
+    
+
     
     if flags.animate
       updateAnim( recH, particles, animation )
@@ -173,6 +219,7 @@ try
         end % rec
       end % movie flag
     end %animate
+    gridPrev = gridOcc;
   end % time
   
 catch err
