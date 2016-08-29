@@ -16,7 +16,7 @@ time.Nt = 10; % Time points
 time.tRec =  1; % record position/record movie
 
 % particle parameters
-particles.type = 'rods';
+particles.type = 'rods'; %rods change diffusion to that of rods, random does not
 particles.vHopProb = 1; % prob velocity hop
 particles.bHopParProb = [0.5]; % prob of browian hop along parallel dir
 particles.bHopPerpProb = 0.25;

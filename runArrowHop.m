@@ -36,9 +36,10 @@ for ii = 1: numParams
   systemP.ffp   = paramFFp(ii);
   systemP.Np = round( systemP.ffp .* systemP.Ng .^ 2 );
   particles.bHopParProb = paramHopPar(ii);
-  particles.bHopPerpProb = particles.bHopParProb / 2;
-  particles.bRotProb = 6 .* particles.bHopParProb;
-  
+  if strcmp(particles.type, 'rods' )
+    particles.bHopPerpProb = particles.bHopParProb / 2;
+    particles.bRotProb = 6 .* particles.bHopParProb;
+  end
   filestring=['AH',...
     '_vProb',num2str(particles.vHopProb),...
     '_hopPar',num2str(particles.bHopParProb),...

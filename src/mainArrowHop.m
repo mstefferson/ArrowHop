@@ -36,11 +36,6 @@ moveMat = ...
 
 blockVec = [ 3 4 1 2 3 4 1 2];
 
-% obstable - particle direction mat
-nemDirLup = [ 1 2 3 4 1 2 3 4]; % nematic direction look-up table
-typeLup = [1 1 1 1 2 2 2 2]; % particles type look-up
-typeAddLup = [ 1 0; 1 0; 1 0; 1 0; 1 0; 1 0; 1 0];
-
 % diffusion matrix (dx1, dy1)
 flipV = [-1 1];
 diffMatPar = [...
@@ -66,16 +61,6 @@ transMat = [...
   7 6 7 8;...
   1 8 7 8];
 
-transMatComplete = [...
-  1 2 1 8 1 2 1 8;...
-  1 2 3 2 1 2 3 2;...
-  3 2 3 4 3 2 3 4;...
-  5 4 3 4 5 4 3 4;...
-  5 6 5 4 5 6 5 4;...
-  5 6 7 6 5 6 7 6;...
-  7 6 7 8 7 6 7 8;...
-  1 8 7 8 1 8 7 8];
-
 % Color wheel
 partitions = length( blockVec );
 animation.colorwheel = makeColorwheel( partitions );
@@ -88,7 +73,6 @@ if flags.animate == 1
   % Set-up movies
   if flags.movie
     Fig = gcf;
-    %Fig.Position = FigPos;
     Mov = VideoWriter(animation.MovStr);
     Mov.FrameRate = 4;
     open(Mov);
@@ -131,26 +115,25 @@ try
       oldDir = particles.dir(pSelect,:);
       newDir = oldDir;
       
-      p1 = 0;
       p2 = vHopProb;
       p3 = p2 + bHopParProb;
       p4 = p3 + bHopPerpProb;
       p5 = p4 + bRotProb;
       
-      if p1 <= rVec(ii) && rVec(ii) < p1 + vHopProb
+      if ( 0 <= rVec(ii) ) && ( rVec(ii) < p2 ) % v Hop
         newPos = oldPos + moveMat( particles.dir(pSelect), : );
         newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
-      elseif p2 <= rVec(ii) && rVec(ii) < p2 +bHopParProb
+      elseif ( p2 <= rVec(ii) ) && ( rVec(ii) < p3 ) % // Hop
         newPos = newPos + flipV( randi(2) ) .* diffMatPar( dirNem, : ) ;
         newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
-      elseif p3 <= rVec(ii) && rVec(ii) < p3 + bHopPerpProb
+      elseif ( p3 <= rVec(ii) ) && ( rVec(ii) < p4 ) % Perp Hop
         newPos = newPos + flipV( randi(2) ) .* diffMatPerp( dirNem, : ) ;
         newPos = mod( newPos - [1 1] , [Ng Ng] ) + [1 1] ;
-      elseif p4 <= rVec(ii) && rVec(ii) < p4 + bRotProb
+      elseif ( p4 <= rVec(ii) ) && ( rVec(ii) <= p5 ) % Rot Hop
         newDir = ...
           mod( particles.dir( pSelect ) + flipV( randi(2) ) - 1, 8) + 1;
       end
-      %keyboard
+
       tpX = newPos(1);
       tpY = newPos(2);
       
@@ -206,8 +189,6 @@ try
       gridPolarStore( newInd, newDir ) = gridPolarStore( newInd, newDir ) + 1;
     end % particles
     
-
-    
     if flags.animate
       updateAnim( recH, particles, animation )
       if flags.movie
@@ -219,7 +200,7 @@ try
         end % rec
       end % movie flag
     end %animate
-    gridPrev = gridOcc;
+    
   end % time
   
 catch err
